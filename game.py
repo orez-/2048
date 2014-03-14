@@ -1,5 +1,6 @@
 import random
 
+
 class Board(object):
     def __init__(self, other_board=None):
         if other_board:
@@ -92,6 +93,9 @@ class Board(object):
             result.add_piece()
         return (result, True)
 
+    def __eq__(self, other):
+        return self.board == other.board
+
 
 class Game(object):
     def __init__(self, input_method):
@@ -101,8 +105,9 @@ class Game(object):
     def play(self):
         while not self.board.game_over:
             print self.board, "\n"
+            action = self.input_method.get_action(Board(self.board))
             try:
-                action = int(self.input_method.get_action(Board(self.board))) % 4
+                action = int(action) % 4
             except ValueError:
                 print "Invalid input"
             else:
