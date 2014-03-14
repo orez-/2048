@@ -6,11 +6,14 @@ class Board(object):
         if other_board:
             if isinstance(other_board, Board):
                 other_board = other_board.board
-            self.board = map(list, map(list, other_board))
+            self.board = map(list, other_board)
         else:
             self.board = [[None] * 4 for _ in xrange(4)]
             self.add_piece()
             self.add_piece()
+
+    def clone(self):
+        return Board(self)
 
     @property
     def open_spots(self):

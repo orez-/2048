@@ -77,13 +77,14 @@ class Tetris(object):
     Best score: 1024 (9)
     Worst score: 256 (7)
     """
-    def __init__(self):
-        pass
-
     def get_action(self, board):
         return self.one_step_average(board)
 
     def quick_look(self, board):
+        """
+        Get the move that results in the best known result one turn
+        in the future.
+        """
         best = (UP, 1)
         for dr in (DOWN, LEFT, RIGHT):
             result = board.try_move(dr)
@@ -94,6 +95,10 @@ class Tetris(object):
         return best[0]
 
     def one_step_average(self, board):
+        """
+        Get the move that results in the best expected result one turn
+        in the future, based on where the random piece could land.
+        """
         best = (UP, 1)
         for dr in (DOWN, LEFT, RIGHT):
             result = board.try_move(dr)
@@ -109,16 +114,25 @@ class Tetris(object):
         return best[0]
 
     def possible_configs(self, board):
+        """
+        Given a board, get all possible boards that could result once
+        the random piece is placed.
+        """
         twos = []
         fours = []
         for (x, y) in board.open_spots:
             for lst, num in zip((twos, fours), (0, 1)):
-                b = type(board)(board)  # TODO: write a clone
+                b = board.clone()
                 b.board[y][x] = num
                 lst.append(b)
         return twos, fours
 
     def score(self, board):
+        """
+        Heuristic that values keeping things ordered from top to bottom
+        and horizontally (with more emphasis on lower rows), and
+        having more spaces open (making more matches).
+        """
         score = 10000
         if board.lost:
             return 0
@@ -154,13 +168,19 @@ class TetrisPlanner(Tetris):
         return answer
 
     def two_step_average(self, board):
+        """
+        Look two steps ahead to decide the statistically best move,
+        counting the random piece placement.
+        """
         lookup = {board: {}}
         # arrange lookup so that it maps boards to maps of directions to possible boards
         for dr in (DOWN, LEFT, RIGHT):
             result = board.try_move(dr)
             if result is not False:
-                confs = self.possible_configs(result)
-                confs = map(lambda q: (0.9, q), confs[0]) + map(lambda q: (0.1, q), confs[1])
+                twos, fours = self.possible_configs(result)
+                confs = (
+                    map(lambda q: (0.9, q), twos) +
+                    map(lambda q: (0.1, q), fours))
                 lookup[board][dr] = confs
 
         # do that again.
@@ -172,16 +192,19 @@ class TetrisPlanner(Tetris):
                 for dr in (DOWN, LEFT, RIGHT):
                     result = bd.try_move(dr)
                     if result is not False:
-                        confs = self.possible_configs(result)
+                        twos, fours = self.possible_configs(result)
                         confs = (
-                            map(lambda q: (0.9, q), confs[0]) +
-                            map(lambda q: (0.1, q), confs[1]))
+                            map(lambda q: (0.9, q), twos) +
+                            map(lambda q: (0.1, q), fours))
                         lookup[bd][dr] = confs
 
         # figure out the best direction to go
         return self.rec_best(board, lookup)[0]
 
     def rec_best(self, board, lookup, mult=1):
+        """
+        Given the lookup map, recursively find the best move to make.
+        """
         best_score = 1
         direction = UP
         if board not in lookup:  # just take the estimated score
