@@ -103,18 +103,70 @@ class Board(object):
 class Game(object):
     def __init__(self, input_method):
         self.input_method = input_method
-        self.board = Board()
 
     def play(self):
-        while not self.board.game_over:
-            print self.board, "\n"
-            action = self.input_method.get_action(Board(self.board))
+        input_method = self.input_method()
+        board = Board()
+        while not board.game_over:
+            print board, "\n"
+            action = input_method.get_action(Board(board))
             try:
                 action = int(action) % 4
             except ValueError:
                 print "Invalid input"
             else:
-                self.board, result = self.board.move(action)
+                board, success = board.move(action)
 
-        print self.board, "\n"
+        print board, "\n"
         print "Game Over"
+
+    def performance_test(self, runs=25):
+        import sys
+        import time
+
+        results = {}
+        timings = []
+        try:
+            for i in xrange(runs):
+                sys.stdout.write("\rRunning test %s" % i)
+                sys.stdout.flush()
+                input_method = self.input_method()
+                board = Board()
+                timeout_counter = 10
+                start = time.time()
+                while not board.game_over:
+                    try:
+                        action = input_method.get_action(Board(board))
+                    except Exception:
+                        results.setdefault("Error", 0)
+                        results["Error"] += 1
+                        break
+                    try:
+                        action = int(action) % 4
+                    except ValueError:
+                        timeout_counter -= 1
+                    else:
+                        board, success = board.move(action)
+                        if success:
+                            timeout_counter = 10
+                        else:
+                            timeout_counter -= 1
+                    if timeout_counter <= 0:
+                        results.setdefault("Timeout", 0)
+                        results["Timeout"] += 1
+                        break
+                else:  # didn't break
+                    highest_num = max(map(max, board.board))
+                    results.setdefault(highest_num, 0)
+                    results[highest_num] += 1
+                timings.append(time.time() - start)
+        except KeyboardInterrupt:
+            print "\nAborting",
+        if results:
+            print "\nResults\n======="
+            print '\n'.join(map(lambda res: "%s: %s" % res, sorted(results.iteritems())))
+            print "\nTimes (s)\n========="
+            print "Min:", min(timings)
+            print "Avg:", sum(timings) / len(timings)
+            print "Max:", max(timings)
+        print

@@ -31,7 +31,6 @@ class Tumbler(object):
 
     def get_action(self, board):
         self.current = (self.current + 1) % 4
-        print ["LEFT", "DOWN", "RIGHT", "UP"][self.current]
         return self.current
 
 
@@ -137,7 +136,7 @@ class Tetris(object):
         if board.lost:
             return 0
         if board.won:
-            return float("inf")
+            return 200000
         tmp_board = [
             [0 if elem is None else 2 ** elem for elem in row]
             for row in board.board]
@@ -164,42 +163,39 @@ class TetrisPlanner(Tetris):
     Worst score: 512 (8)
     """
     def get_action(self, board):
-        answer = self.two_step_average(board)
-        return answer
+        return self.average_lookahead(board)
 
-    def two_step_average(self, board):
+    def average_lookahead(self, original_board):
         """
-        Look two steps ahead to decide the statistically best move,
+        Look a few steps ahead to decide the statistically best move,
         counting the random piece placement.
         """
-        lookup = {board: {}}
-        # arrange lookup so that it maps boards to maps of directions to possible boards
-        for dr in (DOWN, LEFT, RIGHT):
-            result = board.try_move(dr)
-            if result is not False:
-                twos, fours = self.possible_configs(result)
-                confs = (
-                    map(lambda q: (0.9, q), twos) +
-                    map(lambda q: (0.1, q), fours))
-                lookup[board][dr] = confs
-
-        # do that again.
-        for old_confs in lookup[board].values():
-            for odds, bd in old_confs:
-                if bd in lookup:  # already know how this one plays out
+        lookup = {}
+        frontier = [original_board]
+        board_num_cutoff = 1000
+        while board_num_cutoff >= 0:
+            new_frontier = []
+            # If the entire game's mapped out, stop looking.
+            if not frontier:
+                break
+            for source_board in frontier:
+                if source_board in lookup:
                     continue
-                lookup[bd] = {}
+                lookup[source_board] = {}
+                # predict movement in all directions
                 for dr in (DOWN, LEFT, RIGHT):
-                    result = bd.try_move(dr)
-                    if result is not False:
-                        twos, fours = self.possible_configs(result)
+                    tried_board = source_board.try_move(dr)
+                    if tried_board is not False:
+                        twos, fours = self.possible_configs(tried_board)
+                        new_frontier += twos + fours  # try these next
                         confs = (
                             map(lambda q: (0.9, q), twos) +
                             map(lambda q: (0.1, q), fours))
-                        lookup[bd][dr] = confs
-
+                        lookup[source_board][dr] = confs
+                        board_num_cutoff -= len(confs)
+            frontier = new_frontier
         # figure out the best direction to go
-        return self.rec_best(board, lookup)[0]
+        return self.rec_best(original_board, lookup)[0]
 
     def rec_best(self, board, lookup, mult=1):
         """
